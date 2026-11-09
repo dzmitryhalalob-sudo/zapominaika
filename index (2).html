@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Запоминайка</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: var(--tg-theme-bg-color, #ffffff);
+    --text: var(--tg-theme-text-color, #1d1d1f);
+    --hint: var(--tg-theme-hint-color, #8a8a8e);
+    --card: var(--tg-theme-secondary-bg-color, #f2f2f6);
+    --accent: var(--tg-theme-button-color, #3478f6);
+    --accent-text: var(--tg-theme-button-text-color, #ffffff);
+    --ok: #2fb35a;
+    --bad: #e5484d;
+    --gap: #f5a524;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px; line-height: 1.4;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 16px; min-height: 100vh; display: flex; flex-direction: column; }
+  h1 { font-size: 24px; margin: 4px 0 4px; }
+  .sub { color: var(--hint); margin: 0 0 20px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px; }
+  .stat { background: var(--card); border-radius: 14px; padding: 12px 8px; text-align: center; }
+  .stat b { display: block; font-size: 22px; }
+  .stat span { font-size: 12px; color: var(--hint); }
+  .btn {
+    display: block; width: 100%; border: 0; border-radius: 14px; padding: 15px;
+    font-size: 17px; font-weight: 600; cursor: pointer; margin-bottom: 10px;
+    background: var(--accent); color: var(--accent-text);
+  }
+  .btn.secondary { background: var(--card); color: var(--text); }
+  .btn:disabled { opacity: .45; }
+  .card { background: var(--card); border-radius: 20px; padding: 28px 16px; text-align: center; margin-bottom: 20px; }
+  .word { font-size: 38px; font-weight: 700; letter-spacing: 1px; word-break: break-word; }
+  .word .slot {
+    display: inline-block; min-width: 0.9em; border-bottom: 3px solid var(--gap);
+    color: var(--gap); margin: 0 1px;
+  }
+  .word .slot.ok { color: var(--ok); border-color: var(--ok); }
+  .word .slot.bad { color: var(--bad); border-color: var(--bad); }
+  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .opt {
+    border: 0; border-radius: 14px; padding: 18px 8px; font-size: 26px; font-weight: 700;
+    background: var(--card); color: var(--text); cursor: pointer;
+  }
+  .opt.ok { background: var(--ok); color: #fff; }
+  .opt.bad { background: var(--bad); color: #fff; }
+  .hint {
+    background: var(--card); border-left: 4px solid var(--gap); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 16px; text-align: left;
+  }
+  .hint small { display: block; color: var(--hint); margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  .hint img { display: block; width: 100%; max-height: 320px; object-fit: contain; border-radius: 10px; margin-top: 8px; background: var(--bg); }
+  .hint img:first-of-type { margin-top: 4px; }
+  .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; color: var(--hint); font-size: 14px; }
+  .link { background: none; border: 0; color: var(--accent); font-size: 15px; cursor: pointer; padding: 4px 0; }
+  .bar { height: 6px; background: var(--card); border-radius: 3px; overflow: hidden; margin-bottom: 18px; }
+  .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+  .list { list-style: none; padding: 0; margin: 0; }
+  .list li { display: flex; justify-content: space-between; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--card); }
+  .lvl { font-size: 12px; color: var(--hint); }
+  .dots { letter-spacing: 2px; color: var(--ok); }
+  .center { text-align: center; }
+  .mistakes { text-align: left; margin-bottom: 20px; }
+  .mistakes li { display: block; }
+  .mistakes b { font-size: 18px; }
+  .mistakes b em { font-style: normal; color: var(--ok); }
+  .mistakes span { display: block; color: var(--hint); font-size: 14px; margin-top: 2px; }
+  .retry { font-size: 13px; color: var(--gap); margin: -10px 0 12px; text-align: center; }
+  .err { font-size: 12px; color: var(--bad); margin-left: 6px; }
+  .big { font-size: 48px; margin: 24px 0 8px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Home -->
+  <section id="home">
+    <h1>Запоминайка</h1>
+    <p class="sub">Словарные слова с подсказками-запоминалками</p>
+    <div class="stats">
+      <div class="stat"><b id="sDue">0</b><span>повторить сегодня</span></div>
+      <div class="stat"><b id="sLearn">0</b><span>в процессе</span></div>
+      <div class="stat"><b id="sDone">0</b><span>выучено</span></div>
+    </div>
+    <button class="btn" id="startBtn">Начать занятие</button>
+    <button class="btn secondary hidden" id="mistakesBtn">Работа над ошибками</button>
+    <button class="btn secondary" id="listBtn">Все слова</button>
+    <p class="sub center" id="homeNote"></p>
+  </section>
+
+  <!-- Lesson -->
+  <section id="lesson" class="hidden">
+    <div class="top">
+      <button class="link" id="quitBtn">← Выйти</button>
+      <span id="counter"></span>
+    </div>
+    <div class="bar"><i id="progress"></i></div>
+    <div class="card"><div class="word" id="word"></div></div>
+    <p class="retry hidden" id="retryNote">Повторяем слово с ошибкой</p>
+    <div class="options" id="options"></div>
+    <div class="hint hidden" id="hint"><small>Запоминалка</small><span id="hintText"></span><img id="hintImg" class="hidden" alt=""></div>
+    <button class="btn hidden" id="nextBtn">Дальше</button>
+  </section>
+
+  <!-- Result -->
+  <section id="result" class="hidden center">
+    <div class="big" id="resultEmoji">🎉</div>
+    <h1>Занятие окончено</h1>
+    <p class="sub" id="resultText"></p>
+    <div id="mistakesBlock" class="hidden">
+      <p class="sub" style="margin-bottom:8px">Слова, где были ошибки — посмотри на них ещё раз:</p>
+      <ul class="list mistakes" id="mistakesList"></ul>
+    </div>
+    <button class="btn" id="homeBtn">На главную</button>
+  </section>
+
+  <!-- Word list -->
+  <section id="words" class="hidden">
+    <div class="top">
+      <button class="link" id="backBtn">← Назад</button>
+      <span>Уровень запоминания</span>
+    </div>
+    <ul class="list" id="wordList"></ul>
+  </section>
+
+</div>
+
+<script>
+/*
+  CONTENT SOURCE
+  Words are loaded from a Google Sheet published as CSV (File → Share → Publish to web → CSV).
+  Paste that link into SHEET_CSV_URL. If it's empty or unreachable, the built-in list below is used.
+
+  Sheet columns (first row = headers):
+    слово      — the word with the letter(s) to guess in [brackets], e.g. к[о]рова
+    варианты   — answer options separated by commas, the CORRECT one first, e.g. о, а
+    подсказка  — text mnemonic (optional if there is a picture)
+    картинка   — picture: a file name from the images/ folder (e.g. korova.jpg) or a full https:// link (optional)
+*/
+const SHEET_CSV_URL = "";
+const IMAGES_DIR = "images/";
+
+/*
+  Built-in fallback list. Each entry:
+  - w: the word, with the letter(s) to guess wrapped in [brackets]
+  - o: answer options (the correct one first; they are shuffled on screen)
+  - h: text mnemonic, i: picture (optional)
+*/
+const BUILTIN_WORDS = [
+  { w: "к[о]рова",   o: ["о", "а"], h: "У коровы два круглых глаза — две О: кОрОва." },
+  { w: "с[о]бака",   o: ["о", "а"], h: "Собака свернулась калачиком — круглая, как О." },
+  { w: "в[о]рона",   o: ["о", "а"], h: "Ворона кричит «О-о-о!» — вОрОна." },
+  { w: "в[о]робей",  o: ["о", "а"], h: "ВОРобей — маленький вОр: ворует крошки." },
+  { w: "м[о]локо",   o: ["о", "а"], h: "Молоко в круглой кружке — сплошные О: мОлОкО." },
+  { w: "с[о]рока",   o: ["о", "а"], h: "Сорока умеет считать до сОрока." },
+  { w: "м[о]роз",    o: ["о", "а"], h: "Мороз лепит снежные комья — круглые, как О." },
+  { w: "м[о]рковь",  o: ["о", "а"], h: "Морковь растёт в Огороде — и в ней тоже О." },
+  { w: "п[о]мидор",  o: ["о", "а"], h: "Итальянцы зовут его pomo d'oro — «золотое яблоко». pOmo — пОмидор." },
+  { w: "[о]гурец",   o: ["о", "а"], h: "Посмотри на огурец с торца — он круглый, как О." },
+  { w: "ябл[о]ко",   o: ["о", "а"], h: "Яблоко круглое — и в слове круглые О: ЯблОкО." },
+  { w: "т[о]варищ",  o: ["о", "а"], h: "Купцы-товарищи вместе продавали тОвар." },
+  { w: "х[о]рошо",   o: ["о", "а"], h: "Когда всё хорошо, рот круглый от удивления: О-О-О." },
+  { w: "л[о]пата",   o: ["о", "а"], h: "Лопата копает круглую ямку — О." },
+  { w: "к[а]пуста",  o: ["а", "о"], h: "Кап-кап — дождик поливает кАпусту." },
+  { w: "к[а]рандаш", o: ["а", "о"], h: "Тюркское «кара-таш» — «чёрный камень». КАРА — кАрандаш пишет чёрным." },
+  { w: "м[а]лина",   o: ["а", "о"], h: "Малина мАленькая — мАлина." },
+  { w: "р[а]бота",   o: ["а", "о"], h: "Старинное слово рАб — отсюда и рАбота." },
+  { w: "сп[а]сибо",  o: ["а", "о"], h: "Спасибо — это «спАси Бог»." },
+  { w: "з[а]яц",     o: ["а", "е"], h: "У зАйки длинные уши — как буква А." },
+  { w: "г[а]зета",   o: ["а", "о"], h: "Итальянская gAzzetta — монетка, за которую продавали газету." },
+  { w: "м[а]газин",  o: ["а", "о"], h: "Арабское «мАхазин» — склады. МАгазин." },
+  { w: "р[е]бята",   o: ["е", "и"], h: "Ребята — рЕбёнок." },
+  { w: "д[е]вочка",  o: ["е", "и"], h: "Девочка — дЕва." },
+  { w: "б[е]рёза",   o: ["е", "и"], h: "Берёза бЕлая — бЕрёза." },
+  { w: "п[е]нал",    o: ["е", "и"], h: "Латинское pEnna — перо. В пЕнале хранили пЕрья." },
+  { w: "т[е]традь",  o: ["е", "и"], h: "В тЕтрадь пишут тЕкст." },
+  { w: "уч[е]ник",   o: ["е", "и"], h: "УчЕник получает учЕние." },
+  { w: "уч[и]тель",  o: ["и", "е"], h: "УчИтель учИт." },
+  { w: "м[е]дведь",  o: ["е", "и"], h: "МЕДведь — тот, кто вЕдает, где мЁд." },
+  { w: "п[е]тух",    o: ["е", "и"], h: "Петух поЁт — пЕть, пЕтух." },
+  { w: "л[и]сица",   o: ["и", "е"], h: "ЛИса — лИсица." },
+  { w: "б[и]лет",    o: ["и", "е"], h: "Французское bIllet — бИлет." },
+  { w: "адр[е]с",    o: ["е", "и"], h: "В адрЕсе Есть улица и дом." },
+  { w: "пал[ь]то",   o: ["ь", "—"], h: "Пальто мягкое и тёплое — с мягким знаком." },
+  { w: "пра[зд]ник", o: ["зд", "з"], h: "Праздник — праЗДный день, когда не работают: Д спряталась." },
+  { w: "ле[ст]ница", o: ["ст", "с"], h: "По лестнице лЕЗут: лесТница — и Т стоит, как ступенька." },
+  { w: "со[л]нце",   o: ["л", "—"], h: "Солнце — сОЛнышко: там Л слышна." },
+  { w: "кла[сс]",    o: ["сс", "с"], h: "В классе всегда двое за партой — две С." },
+];
+
+let WORDS = BUILTIN_WORDS;
+const WORDS_CACHE_KEY = "words_cache_v1";
+
+/* Minimal CSV parser: handles quotes, commas and line breaks inside quoted cells */
+function parseCSV(text) {
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') q = false;
+      else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += c;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+function rowsToWords(rows) {
+  if (!rows.length) return [];
+  const head = rows[0].map(h => h.trim().toLowerCase());
+  const col = names => head.findIndex(h => names.includes(h));
+  const cW = col(["слово", "word"]), cO = col(["варианты", "options"]),
+        cH = col(["подсказка", "hint"]), cI = col(["картинка", "image"]);
+  if (cW < 0 || cO < 0) return [];
+  return rows.slice(1).map(r => {
+    const w = (r[cW] || "").trim();
+    const o = (r[cO] || "").split(",").map(s => s.trim()).filter(Boolean);
+    const h = cH >= 0 ? (r[cH] || "").trim() : "";
+    let i = cI >= 0 ? (r[cI] || "").trim() : "";
+    if (i && !/^https?:\/\//i.test(i)) i = IMAGES_DIR + i;
+    return { w, o, h, i };
+  }).filter(x => /\[.+\]/.test(x.w) && x.o.length >= 2 && (x.h || x.i));
+}
+
+async function loadWords() {
+  if (!SHEET_CSV_URL) return BUILTIN_WORDS;
+  try {
+    const res = await fetch(SHEET_CSV_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error(res.status);
+    const list = rowsToWords(parseCSV(await res.text()));
+    if (!list.length) throw new Error("empty sheet");
+    try { localStorage.setItem(WORDS_CACHE_KEY, JSON.stringify(list)); } catch (e) {}
+    return list;
+  } catch (e) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(WORDS_CACHE_KEY) || "null");
+      if (cached && cached.length) return cached;
+    } catch (e2) {}
+    return BUILTIN_WORDS;
+  }
+}
+
+/* Leitner-style spaced repetition: box -> days until next review */
+const INTERVALS = [0, 1, 3, 7, 14, 30];
+const MAX_BOX = INTERVALS.length - 1;
+const NEW_PER_LESSON = 7;
+const STORE_KEY = "progress_v1";
+
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const $ = id => document.getElementById(id);
+const today = () => Math.floor(Date.now() / 86400000);
+const plain = w => w.replace(/[\[\]]/g, "");
+
+let progress = {}; // { "корова": { b: box, d: dueDay } }
+
+/* Storage: Telegram CloudStorage (synced per user) with localStorage fallback */
+function loadProgress() {
+  return new Promise(resolve => {
+    const fromLocal = () => {
+      try { resolve(JSON.parse(localStorage.getItem(STORE_KEY) || "{}")); }
+      catch (e) { resolve({}); }
+    };
+    if (tg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast("6.9")) {
+      tg.CloudStorage.getItem(STORE_KEY, (err, val) => {
+        if (err || !val) return fromLocal();
+        try { resolve(JSON.parse(val)); } catch (e) { fromLocal(); }
+      });
+    } else fromLocal();
+  });
+}
+function saveProgress() {
+  const data = JSON.stringify(progress);
+  try { localStorage.setItem(STORE_KEY, data); } catch (e) {}
+  if (tg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast("6.9")) {
+    tg.CloudStorage.setItem(STORE_KEY, data, () => {});
+  }
+}
+
+function haptic(type) {
+  try { tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred(type); } catch (e) {}
+}
+
+function show(id) {
+  ["home", "lesson", "result", "words"].forEach(s => $(s).classList.toggle("hidden", s !== id));
+  window.scrollTo(0, 0);
+}
+
+/* Home */
+function renderHome() {
+  const t = today();
+  let due = 0, learning = 0, done = 0;
+  WORDS.forEach(x => {
+    const p = progress[plain(x.w)];
+    if (!p) return;
+    if (p.b >= MAX_BOX) done++; else learning++;
+    if (p.d <= t) due++;
+  });
+  const fresh = WORDS.filter(x => !progress[plain(x.w)]).length;
+  $("sDue").textContent = due;
+  $("sLearn").textContent = learning;
+  $("sDone").textContent = done;
+  const willStudy = due + Math.min(fresh, NEW_PER_LESSON);
+  $("startBtn").disabled = willStudy === 0;
+  const mistakes = mistakeWords().length;
+  $("mistakesBtn").classList.toggle("hidden", mistakes === 0);
+  $("mistakesBtn").textContent = `Работа над ошибками (${mistakes})`;
+  $("homeNote").textContent = willStudy === 0
+    ? "На сегодня всё повторено. Возвращайся завтра!"
+    : `В занятии: ${willStudy} ${plural(willStudy, "слово", "слова", "слов")}`;
+  show("home");
+}
+
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
+/*
+  Mistakes:
+  - p.e = total number of mistakes on the word (shown in "Все слова")
+  - p.m = how many correct answers in a row are still needed to leave the "mistakes" list
+          (a mistake sets it to MISTAKE_CLEAR, each correct answer lowers it by 1)
+  - a wrong word comes back in the same lesson after RETRY_GAP cards, up to MAX_RETRIES times
+*/
+const MISTAKE_CLEAR = 2;
+const RETRY_GAP = 3;
+const MAX_RETRIES = 2;
+
+let queue = [], pos = 0, correct = 0, answered = false, firstTry = 0;
+let mode = "lesson";            // "lesson" | "mistakes"
+let retries = {};               // word -> times re-queued in this session
+let sessionMistakes = new Map(); // word -> item, for the result screen
+
+function mistakeWords() {
+  return WORDS.filter(x => { const p = progress[plain(x.w)]; return p && p.m > 0; });
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+function beginSession(items, m) {
+  mode = m;
+  queue = shuffle(items.map(item => ({ item, retry: false })));
+  pos = 0; correct = 0; firstTry = queue.length;
+  retries = {}; sessionMistakes = new Map();
+  show("lesson");
+  renderCard();
+}
+
+function startLesson() {
+  const t = today();
+  const due = WORDS.filter(x => { const p = progress[plain(x.w)]; return p && p.d <= t; });
+  const fresh = WORDS.filter(x => !progress[plain(x.w)]).slice(0, NEW_PER_LESSON);
+  beginSession([...due, ...fresh], "lesson");
+}
+
+function startMistakes() {
+  beginSession(mistakeWords(), "mistakes");
+}
+
+function renderCard() {
+  answered = false;
+  const { item, retry } = queue[pos];
+  const [before, rest] = item.w.split("[");
+  const [, after] = rest.split("]");
+  $("word").innerHTML = `${esc(before)}<span class="slot" id="slot">?</span>${esc(after)}`;
+  $("retryNote").classList.toggle("hidden", !retry);
+  $("counter").textContent = `${pos + 1} / ${queue.length}`;
+  $("progress").style.width = `${(pos / queue.length) * 100}%`;
+  $("hint").classList.add("hidden");
+  $("nextBtn").classList.add("hidden");
+  const opts = $("options");
+  opts.innerHTML = "";
+  shuffle([...item.o]).forEach(o => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.textContent = o;
+    b.onclick = () => answer(b, o);
+    opts.appendChild(b);
+  });
+}
+
+function answer(btn, choice) {
+  if (answered) return;
+  answered = true;
+  const { item, retry } = queue[pos];
+  const right = item.o[0];
+  const ok = choice === right;
+  const key = plain(item.w);
+  const slot = $("slot");
+  slot.textContent = right === "—" ? "" : right;
+  slot.classList.add(ok ? "ok" : "bad");
+  [...$("options").children].forEach(b => {
+    if (b.textContent === right) b.classList.add("ok");
+    else if (b === btn) b.classList.add("bad");
+  });
+  const p = progress[key] || { b: 0, d: today(), e: 0, m: 0 };
+  p.e = p.e || 0; p.m = p.m || 0;
+
+  // Spaced repetition level changes only on the word's first try in a normal lesson,
+  // so a re-asked word doesn't climb levels within one sitting.
+  if (mode === "lesson" && !retry) {
+    p.b = ok ? Math.min(p.b + 1, MAX_BOX) : 0;
+    p.d = today() + INTERVALS[p.b];
+  } else if (!ok) {
+    p.b = 0;
+    p.d = today();
+  }
+
+  if (ok) {
+    p.m = Math.max(0, p.m - 1);
+    if (!retry) correct++;
+  } else {
+    p.e += 1;
+    p.m = MISTAKE_CLEAR;
+    sessionMistakes.set(key, item);
+    const n = retries[key] || 0;
+    if (n < MAX_RETRIES) {
+      retries[key] = n + 1;
+      const at = Math.min(pos + 1 + RETRY_GAP, queue.length);
+      queue.splice(at, 0, { item, retry: true });
+    }
+  }
+  progress[key] = p;
+  saveProgress();
+  haptic(ok ? "success" : "error");
+  $("hintText").textContent = item.h || "";
+  const img = $("hintImg");
+  if (item.i) { img.src = item.i; img.classList.remove("hidden"); }
+  else { img.removeAttribute("src"); img.classList.add("hidden"); }
+  $("hint").classList.remove("hidden");
+  $("nextBtn").classList.remove("hidden");
+}
+
+function next() {
+  pos++;
+  if (pos < queue.length) return renderCard();
+  $("progress").style.width = "100%";
+  $("resultText").textContent = `С первого раза правильно: ${correct} из ${firstTry}`;
+  $("resultEmoji").textContent = correct === firstTry ? "🎉" : "💪";
+  const list = $("mistakesList");
+  list.innerHTML = "";
+  sessionMistakes.forEach(item => {
+    const li = document.createElement("li");
+    const word = esc(item.w).replace(/\[(.+?)\]/, (_, l) => `<em>${l === "—" ? "" : l}</em>`);
+    li.innerHTML = `<b>${word}</b>${item.h ? `<span>${esc(item.h)}</span>` : ""}`;
+    list.appendChild(li);
+  });
+  $("mistakesBlock").classList.toggle("hidden", sessionMistakes.size === 0);
+  show("result");
+}
+
+/* Word list */
+function renderList() {
+  const ul = $("wordList");
+  ul.innerHTML = "";
+  WORDS.forEach(x => {
+    const p = progress[plain(x.w)];
+    const li = document.createElement("li");
+    const level = p ? "●".repeat(p.b) + "○".repeat(MAX_BOX - p.b) : "";
+    const errs = p && p.e ? `<span class="err">ошибок: ${p.e}</span>` : "";
+    li.innerHTML = `<span>${esc(plain(x.w))}${errs}</span><span class="${p ? "dots" : "lvl"}">${p ? level : "новое"}</span>`;
+    ul.appendChild(li);
+  });
+  show("words");
+}
+
+$("startBtn").onclick = startLesson;
+$("mistakesBtn").onclick = startMistakes;
+$("nextBtn").onclick = next;
+$("quitBtn").onclick = renderHome;
+$("homeBtn").onclick = renderHome;
+$("listBtn").onclick = renderList;
+$("backBtn").onclick = renderHome;
+
+Promise.all([loadWords(), loadProgress()]).then(([words, p]) => {
+  WORDS = words;
+  progress = p || {};
+  renderHome();
+});
+</script>
+</body>
+</html>
